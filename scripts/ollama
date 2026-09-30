@@ -28,7 +28,7 @@ STATE_DIR = os.environ.get("STATE_DIR", "/root/.k2-horizon")
 STATE_FILE = os.path.join(STATE_DIR, "active-model")
 PORT = int(os.environ.get("PORT", "11436"))
 BASE = f"http://127.0.0.1:{PORT}"
-SERVER_BIN = "/usr/local/bin/llama-server"
+SERVER_BIN = "/usr/local/bin/llama"  # unified CLI: `llama serve ...`
 
 
 def load_manifest():
@@ -143,15 +143,18 @@ def download(ent):
 
 
 def signal_server():
-    """SIGTERM any llama-server so the entrypoint loop restarts with new state."""
+    """SIGTERM any `llama serve` so the entrypoint loop restarts with new state."""
     killed = False
+    me = str(os.getpid())
     for pid in filter(str.isdigit, os.listdir("/proc")):
+        if pid == me:
+            continue
         try:
             with open(f"/proc/{pid}/cmdline", "rb") as f:
                 cmd = f.read().replace(b"\0", b" ").decode(errors="replace")
         except OSError:
             continue
-        if "llama-server" in cmd and str(os.getpid()) != pid:
+        if "llama" in cmd and " serve" in cmd:
             try:
                 os.kill(int(pid), signal.SIGTERM)
                 killed = True
@@ -316,10 +319,10 @@ def cmd_show(args):
 
 
 def cmd__run_server(args):
-    """Hidden: exec llama-server for an alias (or bare API if empty). Used by entrypoint."""
+    """Hidden: exec the server for an alias (or bare API if empty). Used by entrypoint."""
     m = load_manifest()
     alias = args[0] if args else None
-    cmd = [SERVER_BIN, "--host", "0.0.0.0", "--port", str(PORT)]
+    cmd = [SERVER_BIN, "serve", "--host", "0.0.0.0", "--port", str(PORT)]
     if alias:
         ent = entry(m, *parse_alias(alias, m))
         download(ent)  # ensure present (boot-with-MODEL_ALIAS case)

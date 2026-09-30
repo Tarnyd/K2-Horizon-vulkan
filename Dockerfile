@@ -47,17 +47,17 @@ RUN git clone --no-checkout "https://github.com/${LLAMACPP_REPO}.git" llamacpp &
     git log -1 --pretty='%H %ad %s' --date=short
 
 WORKDIR /src/llamacpp
-# Vulkan backend ON (needs glslc from glslang-tools for shaders at build
-# time). CPU backend is always built too (fallback + host-side testability).
+# Unified `llama` binary (llama serve/cli/... subcommands) + llama-cli for
+# debugging. CPU backend is always built too (fallback + host testability).
 RUN cmake -S . -B build -G Ninja \
         -DCMAKE_BUILD_TYPE=Release \
         -DGGML_VULKAN=ON \
         -DLLAMA_BUILD_TESTS=OFF \
         -DLLAMA_BUILD_EXAMPLES=OFF \
         -DLLAMA_BUILD_SERVER=ON && \
-    cmake --build build --target llama-server -j"$(nproc)" && \
-    ls -la build/bin/llama-server && \
-    ./build/bin/llama-server --version || true
+    cmake --build build --target llama-app llama-cli -j"$(nproc)" && \
+    ls -la build/bin/llama build/bin/llama-cli && \
+    ./build/bin/llama --version || true
 
 # ---------------------------------------------------------------------------
 # Stage 2: slim runtime (Vulkan loader + Intel ANV ICD + CLI)
@@ -79,14 +79,15 @@ RUN apt-get update && \
         libgomp1 && \
     rm -rf /var/lib/apt/lists/*
 
-# Server binary + wrapper files
-COPY --from=builder /src/llamacpp/build/bin/llama-server /usr/local/bin/llama-server
+# Server binary + CLI + wrapper files
+COPY --from=builder /src/llamacpp/build/bin/llama /usr/local/bin/llama
+COPY --from=builder /src/llamacpp/build/bin/llama-cli /usr/local/bin/llama-cli
 COPY models.json /etc/k2-horizon/models.json
 COPY scripts/ollama /usr/local/bin/ollama
 COPY entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN chmod +x /usr/local/bin/ollama /usr/local/bin/entrypoint.sh && \
     mkdir -p /models && \
-    /usr/local/bin/llama-server --version || true
+    /usr/local/bin/llama --version || true
 
 # Server env (all overridable). PORT is internal; publish it (default 11436).
 # MODEL_ALIAS selects boot model, e.g. k2-horizon-7b:Q4_K_M (empty = serve API only).

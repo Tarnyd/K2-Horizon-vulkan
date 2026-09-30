@@ -5,7 +5,7 @@ on Intel Arc GPUs with an Ollama-style UX — because neither upstream
 llama.cpp nor Ollama supports the `k2-horizon` architecture yet
 ([llama.cpp#28361](https://github.com/ggml-org/llama.cpp/issues/28361) open).
 
-**What this is:** `llama-server` built from the
+**What this is:** the unified `llama` binary (`llama serve` ...) built from the
 [MBZUAI-IFM llama.cpp fork](https://github.com/MBZUAI-IFM/llama.cpp)
 (branch `model/K2Horizon`) with the Vulkan backend, plus a small `ollama`
 CLI (`run`/`pull`/`list`/`ps`/`rm`/`show`) and an OpenAI-compatible API.
