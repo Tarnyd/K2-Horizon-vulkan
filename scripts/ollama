@@ -1,0 +1,347 @@
+#!/usr/bin/env python3
+"""Ollama-style CLI for the K2-Horizon llama-server container (stdlib only).
+
+Usage:
+  ollama run k2-horizon-7b:Q4_K_M ["prompt..."]  pull (if needed), load, chat
+  ollama pull k2-horizon-3.7b                    download only (default quant)
+  ollama list                                    local GGUFs (+ LOADED mark)
+  ollama ps                                      loaded model(s) on the server
+  ollama show k2-horizon-7b:Q5_K_M               manifest + file info
+  ollama rm k2-horizon-0.9b                      delete local file (not if loaded)
+  ollama serve                                   (managed by entrypoint; hint only)
+
+Alias format: k2-horizon-{0.9b,3.7b,7b}[:QUANT], e.g. k2-horizon-7b:Q4_K_M.
+Quant is case-insensitive, defaults to Q4_K_M. NOTE the repos name files
+1B/4B/7B while families are marketed 0.9B/3.7B/7B - the manifest maps it.
+"""
+import json
+import os
+import signal
+import sys
+import time
+import urllib.request
+import urllib.error
+
+MANIFEST = "/etc/k2-horizon/models.json"
+MODELS_DIR = os.environ.get("MODELS_DIR", "/models")
+STATE_DIR = os.environ.get("STATE_DIR", "/root/.k2-horizon")
+STATE_FILE = os.path.join(STATE_DIR, "active-model")
+PORT = int(os.environ.get("PORT", "11436"))
+BASE = f"http://127.0.0.1:{PORT}"
+SERVER_BIN = "/usr/local/bin/llama-server"
+
+
+def load_manifest():
+    with open(MANIFEST) as f:
+        return json.load(f)
+
+
+def parse_alias(text, manifest):
+    """'k2-horizon-7b:Q4_K_M' -> (family, quant). Bare family gets default quant."""
+    text = text.strip().lower()
+    if ":" in text:
+        fam, quant = text.split(":", 1)
+    else:
+        fam, quant = text, manifest["defaults"]["quant"]
+    fam, quant = fam.strip(), quant.strip().upper()
+    if fam not in manifest["families"]:
+        die(f"unknown family '{fam}'. Known: {', '.join(sorted(manifest['families']))}")
+    quants = manifest["families"][fam]["quants"]
+    if quant not in quants:
+        die(f"unknown quant '{quant}' for {fam}. Known: {', '.join(sorted(quants))}")
+    return fam, quant
+
+
+def entry(manifest, fam, quant):
+    info = manifest["families"][fam]
+    q = info["quants"][quant]
+    url = f"{manifest['defaults']['hf_base']}/{info['repo']}/resolve/main/{q['file']}?download=true"
+    return {"alias": f"{fam}:{quant}", "family": fam, "quant": quant,
+            "repo": info["repo"], "file": q["file"],
+            "path": os.path.join(MODELS_DIR, q["file"]), "url": url,
+            "size_gb_est": q.get("size_gb_est")}
+
+
+def ctx_default(manifest, fam):
+    if fam == "k2-horizon-7b":
+        return int(os.environ.get("CTX_SIZE_7B", manifest["defaults"].get("ctx_size_7b", 4096)))
+    return int(os.environ.get("CTX_SIZE", manifest["defaults"].get("ctx_size", 8192)))
+
+
+def die(msg, code=1):
+    print(f"error: {msg}", file=sys.stderr)
+    sys.exit(code)
+
+
+def api(method, path, payload=None, timeout=600):
+    data = json.dumps(payload).encode() if payload is not None else None
+    req = urllib.request.Request(BASE + path, data=data, method=method,
+                                 headers={"Content-Type": "application/json"})
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as r:
+            return r.status, r.read().decode()
+    except urllib.error.HTTPError as e:
+        return e.code, e.read().decode(errors="replace")
+    except Exception as e:
+        return None, str(e)
+
+
+def server_models():
+    st, body = api("GET", "/v1/models", timeout=10)
+    if st != 200:
+        return []
+    try:
+        return [m.get("id", "") for m in json.loads(body).get("data", [])]
+    except Exception:
+        return []
+
+
+def server_up():
+    st, _ = api("GET", "/health", timeout=5)
+    return st == 200
+
+
+def active_alias():
+    try:
+        with open(STATE_FILE) as f:
+            return f.read().strip() or None
+    except OSError:
+        return None
+
+
+def download(ent):
+    os.makedirs(MODELS_DIR, exist_ok=True)
+    if os.path.exists(ent["path"]) and os.path.getsize(ent["path"]) > 0:
+        print(f"already downloaded: {ent['path']}")
+        return
+    print(f"pulling {ent['alias']} ({ent['size_gb_est']} GB est.)")
+    print(f"  from {ent['url'].split('?')[0]}")
+    req = urllib.request.Request(ent["url"], headers={"User-Agent": "k2-horizon-vulkan/1.0"})
+    try:
+        with urllib.request.urlopen(req, timeout=60) as r, open(ent["path"], "wb") as f:
+            total = int(r.headers.get("Content-Length", 0))
+            got, last_pct, t0 = 0, -1, time.time()
+            while True:
+                chunk = r.read(1 << 20)
+                if not chunk:
+                    break
+                f.write(chunk)
+                got += len(chunk)
+                if total:
+                    pct = got * 100 // total
+                    if pct != last_pct and pct % 5 == 0:
+                        el = time.time() - t0
+                        print(f"  {pct}% ({got/1e9:.2f}/{total/1e9:.2f} GB, {got/1e6/max(el,0.1):.1f} MB/s)")
+                        last_pct = pct
+    except Exception as e:
+        try:
+            os.remove(ent["path"])
+        except OSError:
+            pass
+        die(f"download failed: {e}")
+    print(f"done: {ent['path']} ({os.path.getsize(ent['path'])/1e9:.2f} GB)")
+
+
+def signal_server():
+    """SIGTERM any llama-server so the entrypoint loop restarts with new state."""
+    killed = False
+    for pid in filter(str.isdigit, os.listdir("/proc")):
+        try:
+            with open(f"/proc/{pid}/cmdline", "rb") as f:
+                cmd = f.read().replace(b"\0", b" ").decode(errors="replace")
+        except OSError:
+            continue
+        if "llama-server" in cmd and str(os.getpid()) != pid:
+            try:
+                os.kill(int(pid), signal.SIGTERM)
+                killed = True
+            except OSError:
+                pass
+    return killed
+
+
+def wait_loaded(alias, timeout=600):
+    print(f"waiting for {alias} to load...", flush=True)
+    t0 = time.time()
+    while time.time() - t0 < timeout:
+        if alias in server_models():
+            print("loaded.")
+            return True
+        time.sleep(5)
+    return False
+
+
+def cmd_pull(args):
+    m = load_manifest()
+    if not args:
+        die("usage: ollama pull <alias>")
+    ent = entry(m, *parse_alias(args[0], m))
+    download(ent)
+
+
+def cmd_run(args):
+    m = load_manifest()
+    if not args:
+        die("usage: ollama run <alias> [prompt...]")
+    ent = entry(m, *parse_alias(args[0], m))
+    prompt = " ".join(args[1:]) if len(args) > 1 else None
+    download(ent)
+    if active_alias() != ent["alias"]:
+        os.makedirs(STATE_DIR, exist_ok=True)
+        with open(STATE_FILE, "w") as f:
+            f.write(ent["alias"])
+        signal_server()
+        if not wait_loaded(ent["alias"]):
+            die("model did not appear loaded (see server log). Try again or check VRAM.")
+    else:
+        print(f"{ent['alias']} already loaded.")
+    if prompt:
+        print(complete(ent["alias"], [{"role": "user", "content": prompt}]))
+    else:
+        repl(ent["alias"])
+
+
+def complete(alias, messages, timeout=900):
+    st, body = api("POST", "/v1/chat/completions",
+                   {"model": alias, "messages": messages, "stream": False},
+                   timeout=timeout)
+    if st != 200:
+        die(f"chat failed (HTTP {st}): {body[:300]}")
+    try:
+        return json.loads(body)["choices"][0]["message"]["content"]
+    except Exception as e:
+        die(f"bad chat response: {e}: {body[:300]}")
+
+
+def repl(alias):
+    print(f"chatting with {alias} (Ctrl-D or /bye to quit)")
+    hist = []
+    while True:
+        try:
+            line = input(">>> ").strip()
+        except (EOFError, KeyboardInterrupt):
+            print()
+            return
+        if not line:
+            continue
+        if line in ("/bye", "/quit", "/exit"):
+            return
+        hist.append({"role": "user", "content": line})
+        # stream tokens as they arrive
+        req = urllib.request.Request(
+            BASE + "/v1/chat/completions",
+            data=json.dumps({"model": alias, "messages": hist, "stream": True}).encode(),
+            headers={"Content-Type": "application/json"})
+        text = []
+        try:
+            with urllib.request.urlopen(req, timeout=900) as r:
+                for raw in r:
+                    line_ = raw.decode(errors="replace").strip()
+                    if not line_.startswith("data:"):
+                        continue
+                    payload = line_[5:].strip()
+                    if payload == "[DONE]":
+                        break
+                    try:
+                        delta = json.loads(payload)["choices"][0].get("delta", {})
+                    except Exception:
+                        continue
+                    piece = delta.get("content", "")
+                    if piece:
+                        text.append(piece)
+                        print(piece, end="", flush=True)
+        except KeyboardInterrupt:
+            print()
+            continue
+        except Exception as e:
+            print(f"\n[request failed: {e}]")
+            continue
+        print()
+        hist.append({"role": "assistant", "content": "".join(text)})
+
+
+def cmd_list(_args):
+    m = load_manifest()
+    loaded = set(server_models())
+    act = active_alias()
+    found = False
+    try:
+        files = sorted(f for f in os.listdir(MODELS_DIR) if f.endswith(".gguf"))
+    except OSError:
+        files = []
+    for fn in files:
+        found = True
+        alias = next((f"{fam}:{q}" for fam, fi in m["families"].items()
+                      for q, qi in fi["quants"].items() if qi["file"] == fn), fn)
+        mark = "  <-- LOADED" if alias in loaded or alias == act else ""
+        print(f"{alias}  ({os.path.getsize(os.path.join(MODELS_DIR, fn))/1e9:.2f} GB){mark}")
+    if not found:
+        print("(no models downloaded - try: ollama pull k2-horizon-0.9b)")
+
+
+def cmd_ps(_args):
+    act = active_alias()
+    print(f"active: {act or '(none)'}")
+    loaded = server_models()
+    print("server loaded:", ", ".join(loaded) if loaded else "(none)")
+    print(f"server: {BASE} ({'up' if server_up() else 'down'})")
+
+
+def cmd_rm(args):
+    if not args:
+        die("usage: ollama rm <alias>")
+    m = load_manifest()
+    ent = entry(m, *parse_alias(args[0], m))
+    if ent["alias"] in server_models() or active_alias() == ent["alias"]:
+        die(f"{ent['alias']} is loaded - load another model first")
+    if not os.path.exists(ent["path"]):
+        die(f"not downloaded: {ent['alias']}")
+    os.remove(ent["path"])
+    print(f"removed {ent['alias']}")
+
+
+def cmd_show(args):
+    m = load_manifest()
+    if not args:
+        die("usage: ollama show <alias>")
+    ent = entry(m, *parse_alias(args[0], m))
+    loaded = ent["alias"] in server_models()
+    print(f"alias:   {ent['alias']}")
+    print(f"repo:    {ent['repo']}")
+    print(f"file:    {ent['file']}")
+    print(f"local:   {ent['path']}" +
+          (f" ({os.path.getsize(ent['path'])/1e9:.2f} GB)" if os.path.exists(ent["path"]) else " (not downloaded)"))
+    print(f"loaded:  {'yes' if loaded else 'no'}")
+    print(f"ctx:     {ctx_default(m, ent['family'])} (override CTX_SIZE)")
+
+
+def cmd__run_server(args):
+    """Hidden: exec llama-server for an alias (or bare API if empty). Used by entrypoint."""
+    m = load_manifest()
+    alias = args[0] if args else None
+    cmd = [SERVER_BIN, "--host", "0.0.0.0", "--port", str(PORT)]
+    if alias:
+        ent = entry(m, *parse_alias(alias, m))
+        download(ent)  # ensure present (boot-with-MODEL_ALIAS case)
+        cmd += ["-m", ent["path"], "--alias", ent["alias"],
+                "--ctx-size", str(ctx_default(m, ent["family"])),
+                "--n-gpu-layers", os.environ.get("N_GPU_LAYERS", "999")]
+    print(f"[shim] exec: {' '.join(cmd)}", flush=True)
+    os.execv(cmd[0], cmd)
+
+
+def main(argv):
+    if len(argv) < 2:
+        print(__doc__.split("\n\n")[1])
+        return 2
+    cmds = {"run": cmd_run, "pull": cmd_pull, "list": cmd_list, "ps": cmd_ps,
+            "rm": cmd_rm, "show": cmd_show, "_run-server": cmd__run_server,
+            "serve": lambda a: die("server is managed by the entrypoint (CMD serve)")}
+    if argv[1] not in cmds:
+        die(f"unknown command '{argv[1]}'. Try: run pull list ps rm show")
+    cmds[argv[1]](argv[2:])
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv))

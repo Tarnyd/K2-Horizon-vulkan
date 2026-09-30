@@ -1,0 +1,48 @@
+{
+  "_comment": "Alias manifest for K2-Horizon GGUFs on HuggingFace. sizes are estimates (GB) - verify on first pull. NOTE the repos use 1B/4B/7B file naming while families are marketed as 0.9B/3.7B/7B.",
+  "defaults": {
+    "quant": "Q4_K_M",
+    "ctx_size": 8192,
+    "ctx_size_7b": 4096,
+    "models_dir": "/models",
+    "hf_base": "https://huggingface.co"
+  },
+  "families": {
+    "k2-horizon-0.9b": {
+      "repo": "IFM/K2-Horizon-0.9B-GGUF",
+      "prefix": "K2-Horizon-1B",
+      "quants": {
+        "Q4_K_M": {"file": "K2-Horizon-1B-Q4_K_M.gguf", "size_gb_est": 0.7},
+        "Q5_0":   {"file": "K2-Horizon-1B-Q5_0.gguf",    "size_gb_est": 0.75},
+        "Q5_K_M": {"file": "K2-Horizon-1B-Q5_K_M.gguf",  "size_gb_est": 0.8},
+        "Q6_K":   {"file": "K2-Horizon-1B-Q6_K.gguf",    "size_gb_est": 0.9},
+        "Q8_0":   {"file": "K2-Horizon-1B-Q8_0.gguf",    "size_gb_est": 1.2},
+        "BF16":   {"file": "K2-Horizon-1B-BF16.gguf",    "size_gb_est": 2.2}
+      }
+    },
+    "k2-horizon-3.7b": {
+      "repo": "IFM/K2-Horizon-3.7B-GGUF",
+      "prefix": "K2-Horizon-4B",
+      "quants": {
+        "Q4_K_M": {"file": "K2-Horizon-4B-Q4_K_M.gguf",  "size_gb_est": 2.6},
+        "Q5_0":   {"file": "K2-Horizon-4B-Q5_0.gguf",    "size_gb_est": 2.8},
+        "Q5_K_M": {"file": "K2-Horizon-4B-Q5_K_M.gguf",  "size_gb_est": 3.0},
+        "Q6_K":   {"file": "K2-Horizon-4B-Q6_K.gguf",    "size_gb_est": 3.3},
+        "Q8_0":   {"file": "K2-Horizon-4B-Q8_0.gguf",    "size_gb_est": 4.4},
+        "BF16":   {"file": "K2-Horizon-4B-BF16.gguf",    "size_gb_est": 8.6}
+      }
+    },
+    "k2-horizon-7b": {
+      "repo": "IFM/K2-Horizon-7B-GGUF",
+      "prefix": "K2-Horizon-7B",
+      "quants": {
+        "Q4_K_M": {"file": "K2-Horizon-7B-Q4_K_M.gguf",  "size_gb_est": 4.6},
+        "Q5_0":   {"file": "K2-Horizon-7B-Q5_0.gguf",    "size_gb_est": 4.9},
+        "Q5_K_M": {"file": "K2-Horizon-7B-Q5_K_M.gguf",  "size_gb_est": 5.3},
+        "Q6_K":   {"file": "K2-Horizon-7B-Q6_K.gguf",    "size_gb_est": 5.8},
+        "Q8_0":   {"file": "K2-Horizon-7B-Q8_0.gguf",    "size_gb_est": 7.7},
+        "BF16":   {"file": "K2-Horizon-7B-BF16.gguf",    "size_gb_est": 15.0}
+      }
+    }
+  }
+}

@@ -1,0 +1,43 @@
+# K2-Horizon on Intel Arc (Vulkan) + Ollama-style CLI.
+# No host build needed for running (image is prebuilt); this file builds it.
+name: k2-horizon-vulkan
+
+services:
+  k2-horizon:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      # Pin/override the llama.cpp source here. Move to a newer SHA (or
+      # ggml-org/llama.cpp master once k2-horizon lands upstream) for fixes.
+      args:
+        LLAMACPP_REPO: MBZUAI-IFM/llama.cpp
+        LLAMACPP_REF: 42adf019f76013dac873b5b43950d54d5ab27216
+    image: tarnyd/k2-horizon-vulkan:latest
+    container_name: k2-horizon
+    restart: unless-stopped
+    devices:
+      - /dev/dri:/dev/dri
+    ports:
+      - "${K2_PORT:-11436}:11436"
+    volumes:
+      - k2-models:/models
+      - k2-state:/root/.k2-horizon
+    environment:
+      - OLLAMA_HOST=0.0.0.0:11436
+      - PORT=11436
+      - MODELS_DIR=/models
+      - MODEL_ALIAS=${MODEL_ALIAS:-}
+      - CTX_SIZE=${CTX_SIZE:-8192}
+      - CTX_SIZE_7B=${CTX_SIZE_7B:-4096}
+      - N_GPU_LAYERS=${N_GPU_LAYERS:-999}
+      - OLLAMA_ORIGINS=${OLLAMA_ORIGINS:-*}
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:11436/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 180s
+
+volumes:
+  k2-models: {}
+  k2-state: {}

@@ -1,0 +1,41 @@
+<?xml version="1.0"?>
+<!--
+  Unraid Community Applications template: K2-Horizon (Vulkan, Ollama-style).
+
+  INSTALL (manual): Unraid -> Docker -> Add Container -> Template, paste:
+    https://raw.githubusercontent.com/Tarnyd/K2-Horizon-vulkan/main/ollama-k2horizon.xml
+
+  Boots to API-only when MODEL_ALIAS is empty; load a model from console:
+    ollama run k2-horizon-7b:Q4_K_M
+  Runs beside Ollama containers: different name, port (11436) and storage.
+-->
+<Container version="2">
+  <Name>k2-horizon</Name>
+  <Repository>tarnyd/k2-horizon-vulkan</Repository>
+  <Registry>https://hub.docker.com/r/tarnyd/k2-horizon-vulkan/</Registry>
+  <Network>bridge</Network>
+  <MyIP/>
+  <Shell>bash</Shell>
+  <Privileged>false</Privileged>
+  <Support>https://github.com/Tarnyd/K2-Horizon-vulkan</Support>
+  <Project>https://huggingface.co/IFM</Project>
+  <ReadMe/>
+  <Overview>K2-Horizon models (IFM, 0.9B/3.7B/7B) on Intel Arc GPUs via Vulkan llama-server, with Ollama-style CLI (ollama run/pull/list) and OpenAI-compatible API. Experimental: upstream llama.cpp has not merged k2-horizon yet; built from the MBZUAI-IFM fork. Requires an Intel Arc GPU with /dev/dri on the host.</Overview>
+  <Category>AI: Tools:</Category>
+  <WebUI>http://[IP]:[PORT:11436]/</WebUI>
+  <TemplateURL>https://raw.githubusercontent.com/Tarnyd/K2-Horizon-vulkan/main/ollama-k2horizon.xml</TemplateURL>
+  <Icon>https://raw.githubusercontent.com/ollama/ollama/main/docs/ollama.png</Icon>
+  <ExtraParams>--device=/dev/dri</ExtraParams>
+  <PostArgs/>
+  <CPUset/>
+  <DonateText/>
+  <DonateLink/>
+  <Requires>Intel Arc GPU with kernel driver loaded (/dev/dri on host). First model download is several GB.</Requires>
+  <Config Name="Model Storage" Target="/models" Default="/mnt/user/appdata/k2-horizon-models" Mode="rw" Description="GGUF files (2-9 GB each) are downloaded here on first pull." Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/k2-horizon-models</Config>
+  <Config Name="API Port" Target="11436" Default="11436" Mode="tcp" Description="Port for the OpenAI-compatible API. 11436 default avoids clashing with Ollama on 11434/11435." Type="Port" Display="always" Required="true" Mask="false">11436</Config>
+  <Config Name="MODEL_ALIAS" Target="MODEL_ALIAS" Default="" Mode="" Description="Boot model, e.g. k2-horizon-0.9b (downloads ~0.7 GB on first boot). Empty = API only, load later with: ollama run k2-horizon-7b:Q4_K_M" Type="Variable" Display="always" Required="false" Mask="false"></Config>
+  <Config Name="OLLAMA_ORIGINS" Target="OLLAMA_ORIGINS" Default="*" Mode="" Description="Kept for familiarity; informational." Type="Variable" Display="always" Required="false" Mask="false">*</Config>
+  <Config Name="CTX_SIZE" Target="CTX_SIZE" Default="8192" Mode="" Description="Context size for 0.9B/3.7B models (tokens; more = more VRAM)." Type="Variable" Display="always" Required="false" Mask="false">8192</Config>
+  <Config Name="CTX_SIZE_7B" Target="CTX_SIZE_7B" Default="4096" Mode="" Description="Context size for 7B models (tighter VRAM budget on 6 GB cards)." Type="Variable" Display="always" Required="false" Mask="false">4096</Config>
+  <TailscaleStateDir/>
+</Container>
