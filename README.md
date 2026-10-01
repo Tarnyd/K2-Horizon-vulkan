@@ -97,6 +97,22 @@ K2 models emit chain-of-thought into `reasoning_content` before the answer
 in `content` — give clients enough `max_tokens` (256+) or the visible
 answer may be cut off.
 
+## Thinking control
+
+K2 is a reasoning model: the chat template defaults to `effort=high`,
+which can burn thousands of tokens before answering (or never stop).
+
+- `REASONING_BUDGET` (default `1024`): hard cap on thinking tokens per
+  reply — the model then answers immediately. `-1` = unlimited (old
+  runaway behavior), `256` = snappy but dumber.
+- `REASONING=off`: no thinking at all (fastest). `on`/`auto` = model
+  default.
+- Per request (OpenAI body): `reasoning_effort: "none"` or
+  `reasoning_budget_tokens: N` override the server default for that one
+  call. Efforts `high`/`medium`/`low` exist upstream, but only `high`
+  extracts cleanly today — `medium`/`low` leak template markers into the
+  visible answer.
+
 ## Differences from Ollama (known gaps)
 
 - No native `/api/*` endpoints (`/api/chat`, `/api/tags`, …). Clients

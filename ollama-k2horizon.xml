@@ -41,5 +41,7 @@
   <Config Name="OLLAMA_ORIGINS" Target="OLLAMA_ORIGINS" Default="*" Mode="" Description="Kept for familiarity; informational." Type="Variable" Display="always" Required="false" Mask="false">*</Config>
   <Config Name="CTX_SIZE" Target="CTX_SIZE" Default="8192" Mode="" Description="Context size for 0.9B/3.7B models (tokens; more = more VRAM)." Type="Variable" Display="always" Required="false" Mask="false">8192</Config>
   <Config Name="CTX_SIZE_7B" Target="CTX_SIZE_7B" Default="4096" Mode="" Description="Context size for 7B models (tighter VRAM budget on 6 GB cards)." Type="Variable" Display="always" Required="false" Mask="false">4096</Config>
+  <Config Name="REASONING_BUDGET" Target="REASONING_BUDGET" Default="1024" Mode="" Description="Max thinking tokens per reply (default 1024). Lower = faster but dumber answers; -1 = unlimited (runaway thinking)." Type="Variable" Display="always" Required="false" Mask="false">1024</Config>
+  <Config Name="REASONING" Target="REASONING" Default="" Mode="" Description="on/off/auto. Set to off to disable thinking entirely (empty = model default)." Type="Variable" Display="always" Required="false" Mask="false"></Config>
   <TailscaleStateDir/>
 </Container>

@@ -17,6 +17,13 @@
   messages (model buffer placement, memory breakdown) map to TRACE and
   were silently dropped at the default level 3, making GPU-offload
   diagnosis impossible from `docker logs`.
+- Thinking control: default `REASONING_BUDGET=1024` (was unlimited —
+  template defaults to `effort=high`, verified to burn the whole token
+  budget without answering) + `REASONING=off` to disable thinking;
+  both wired through shim, compose, `.env.example` and the Unraid
+  template. Per-request `reasoning_effort`/`reasoning_budget_tokens`
+  documented in README. `effort medium/low` intentionally not exposed
+  (leaks `think_fast` markers into answers).
 - Verified on build host (CPU): pull, run→restart→load, `/health`,
   `/v1/models`, `/v1/chat/completions` (OpenAI shape incl.
   `reasoning_content`), list/ps/show/stop/rm, REPL, model re-run.

@@ -351,6 +351,12 @@ def cmd__run_server(args):
     alias = args[0] if args else None
     cmd = [SERVER_BIN, "serve", "--host", "0.0.0.0", "--port", str(PORT),
            "-lv", os.environ.get("VERBOSITY", "4")]  # 4=trace: libllama INFO (offload, buffer sizes) hidden at default 3
+    reasoning = os.environ.get("REASONING", "").strip().lower()
+    if reasoning in ("on", "off", "auto"):
+        cmd += ["--reasoning", reasoning]
+    budget = os.environ.get("REASONING_BUDGET", "").strip()
+    if budget:
+        cmd += ["--reasoning-budget", budget]
     if alias:
         ent = entry(m, *parse_alias(alias, m))
         download(ent)  # ensure present (boot-with-MODEL_ALIAS case)

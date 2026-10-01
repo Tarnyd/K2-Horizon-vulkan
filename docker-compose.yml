@@ -32,6 +32,8 @@ services:
       - N_GPU_LAYERS=${N_GPU_LAYERS:-999}
       - OLLAMA_ORIGINS=${OLLAMA_ORIGINS:-*}
       - VERBOSITY=${VERBOSITY:-4}
+      - REASONING=${REASONING:-}
+      - REASONING_BUDGET=${REASONING_BUDGET:-1024}
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://127.0.0.1:11436/health"]
       interval: 30s
