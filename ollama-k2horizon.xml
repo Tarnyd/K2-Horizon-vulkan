@@ -2,11 +2,15 @@
 <!--
   Unraid Community Applications template: K2-Horizon (Vulkan, Ollama-style).
 
-  INSTALL (manual): Unraid -> Docker -> Add Container -> Template, paste:
+  INSTALL: Unraid -> Docker -> Add Container -> Template, paste:
     https://raw.githubusercontent.com/Tarnyd/K2-Horizon-vulkan/main/ollama-k2horizon.xml
 
+  The image is PULLED from Docker Hub (tarnyd/k2-horizon-vulkan:latest) -
+  no build on the server. Container name: k2-horizon. Test from a terminal:
+    docker exec -it k2-horizon ollama run k2-horizon-7b:Q4_K_M
+
   Boots to API-only when MODEL_ALIAS is empty; load a model from console:
-    ollama run k2-horizon-7b:Q4_K_M
+    docker exec -it k2-horizon ollama run k2-horizon-7b:Q4_K_M
   Runs beside Ollama containers: different name, port (11436) and storage.
 -->
 <Container version="2">

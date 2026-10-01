@@ -26,6 +26,19 @@ docker pull tarnyd/k2-horizon-vulkan:latest
 
 Requires `/dev/dri` on the host (i915/xe driver) and ~10 GB free for models.
 
+**Unraid (recommended — no build, image is pulled from Docker Hub):**
+Docker → Add Container → Template, paste the raw URL of
+`ollama-k2horizon.xml` from this repo. The template installs the container
+as `k2-horizon` on port 11436 with `--device=/dev/dri` and model storage
+under `/mnt/user/appdata/k2-horizon-models`. It runs beside Ollama (own
+port and storage) by design. Then, from any terminal with Docker access:
+
+```bash
+docker exec -it k2-horizon ollama run k2-horizon-7b:Q4_K_M "Hej!"
+```
+
+**Plain Docker (any Linux host):**
+
 ```bash
 docker run -d --name k2-horizon \
   --device=/dev/dri \
@@ -37,10 +50,8 @@ docker run -d --name k2-horizon \
 docker exec -it k2-horizon ollama run k2-horizon-7b:Q4_K_M "Hej!"
 ```
 
-With compose: `docker compose up -d --build`.
-On Unraid: Docker → Add Container → Template, paste the raw URL of
-`ollama-k2horizon.xml` from this repo. Runs beside Ollama (own port 11436,
-own storage) by design.
+Building locally is only for development: `docker compose up -d --build`
+(or `./scripts/build.sh`) on a build machine — never needed on the server.
 
 ## Model aliases
 

@@ -52,6 +52,11 @@ Intel Arc. Public-safe, generic, anonymous: no names, emails, IPs, tokens.
 
 ## 4. Build / test
 
+- **Unraid installs pull `tarnyd/k2-horizon-vulkan:latest` from Docker Hub
+  — never build on the server.** The template's container name must stay
+  `k2-horizon`; test it with `docker exec -it k2-horizon ollama ...`.
+- Builds happen on the build machine only:
+
 ```bash
 docker build -t tarnyd/k2-horizon-vulkan:test .        # ~15-30 min (builder)
 docker run -d --name k2t --device=/dev/dri -p 11436:11436 \
