@@ -31,6 +31,7 @@ services:
       - CTX_SIZE_7B=${CTX_SIZE_7B:-4096}
       - N_GPU_LAYERS=${N_GPU_LAYERS:-999}
       - OLLAMA_ORIGINS=${OLLAMA_ORIGINS:-*}
+      - VERBOSITY=${VERBOSITY:-4}
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://127.0.0.1:11436/health"]
       interval: 30s

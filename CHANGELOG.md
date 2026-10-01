@@ -13,10 +13,15 @@
   image.
 - CLI: added `stop` (unload → bare API); `rm` unloads the active model
   first instead of refusing.
+- Logging: default `-lv 4` (trace) via `VERBOSITY` env. libllama INFO
+  messages (model buffer placement, memory breakdown) map to TRACE and
+  were silently dropped at the default level 3, making GPU-offload
+  diagnosis impossible from `docker logs`.
 - Verified on build host (CPU): pull, run→restart→load, `/health`,
   `/v1/models`, `/v1/chat/completions` (OpenAI shape incl.
   `reasoning_content`), list/ps/show/stop/rm, REPL, model re-run.
-- Pending Tower verification: runtime ladder 0.9B → 3.7B → 7B on Arc A380
-  with `/dev/dri` Vulkan (tokens/s, VRAM, stability) not yet run.
+- Tower (Arc A380): 0.9B (46 t/s) + 3.7B (14.2 t/s, 8k-token run)
+  verified via `ollama run`; 7B step and buffer-placement confirmation
+  (`Vulkan0` vs `CPU`) pending.
 - Open: replace restart-switching with `/models/load` by-name if proven
   reliable on hardware; `/api/*` shim only if a real consumer needs it.
