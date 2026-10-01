@@ -174,6 +174,15 @@ def wait_loaded(alias, timeout=600):
     return False
 
 
+def wait_unloaded(timeout=60):
+    t0 = time.time()
+    while time.time() - t0 < timeout:
+        if not server_models():
+            return True
+        time.sleep(2)
+    return False
+
+
 def cmd_pull(args):
     m = load_manifest()
     if not args:
@@ -290,13 +299,31 @@ def cmd_ps(_args):
     print(f"server: {BASE} ({'up' if server_up() else 'down'})")
 
 
+def stop_loaded_model():
+    """Clear state + restart server with no model (frees VRAM)."""
+    os.makedirs(STATE_DIR, exist_ok=True)
+    with open(STATE_FILE, "w") as f:
+        f.write("")
+    signal_server()
+
+
+def cmd_stop(_args):
+    if active_alias() is None and not server_models():
+        print("no model loaded")
+        return
+    stop_loaded_model()
+    wait_unloaded()
+    print("stopped (server runs with no model loaded)")
+
+
 def cmd_rm(args):
     if not args:
         die("usage: ollama rm <alias>")
     m = load_manifest()
     ent = entry(m, *parse_alias(args[0], m))
-    if ent["alias"] in server_models() or active_alias() == ent["alias"]:
-        die(f"{ent['alias']} is loaded - load another model first")
+    if active_alias() == ent["alias"]:
+        stop_loaded_model()
+        wait_unloaded()
     if not os.path.exists(ent["path"]):
         die(f"not downloaded: {ent['alias']}")
     os.remove(ent["path"])
@@ -338,10 +365,11 @@ def main(argv):
         print(__doc__.split("\n\n")[1])
         return 2
     cmds = {"run": cmd_run, "pull": cmd_pull, "list": cmd_list, "ps": cmd_ps,
-            "rm": cmd_rm, "show": cmd_show, "_run-server": cmd__run_server,
+            "rm": cmd_rm, "show": cmd_show, "stop": cmd_stop,
+            "_run-server": cmd__run_server,
             "serve": lambda a: die("server is managed by the entrypoint (CMD serve)")}
     if argv[1] not in cmds:
-        die(f"unknown command '{argv[1]}'. Try: run pull list ps rm show")
+        die(f"unknown command '{argv[1]}'. Try: run pull list ps rm show stop")
     cmds[argv[1]](argv[2:])
     return 0
 

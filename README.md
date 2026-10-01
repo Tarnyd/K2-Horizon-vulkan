@@ -69,11 +69,12 @@ boot), or leave empty for API-only until you `run` something.
 - `list` — downloaded GGUFs (+ `LOADED` mark).
 - `ps` — active + server-loaded models, server status.
 - `show <alias>` — repo/file/size/loaded/ctx info.
-- `rm <alias>` — delete local file (refuses if loaded).
+- `stop` — unload the active model (server restarts bare, frees VRAM).
+- `rm <alias>` — delete local file (unloads first if it is the active model).
 
 ## API
 
-Native `llama-server` endpoints on port 11436:
+Native server endpoints on port 11436 (unified `llama serve` binary):
 
 - `GET /health`, `GET /v1/models`, `POST /v1/chat/completions`
   (streaming supported), `POST /v1/completions`, `POST /v1/embeddings`
@@ -81,6 +82,9 @@ Native `llama-server` endpoints on port 11436:
 
 Point OpenAI-compatible clients (Open WebUI custom endpoint, Hindsight
 `openai` provider with `BASE_URL=http://<host>:11436/v1`, `curl`) at it.
+K2 models emit chain-of-thought into `reasoning_content` before the answer
+in `content` — give clients enough `max_tokens` (256+) or the visible
+answer may be cut off.
 
 ## Differences from Ollama (known gaps)
 
@@ -101,7 +105,8 @@ Point OpenAI-compatible clients (Open WebUI custom endpoint, Hindsight
 - **Base:** Ubuntu 24.04; runtime needs only Vulkan loader + Mesa ANV ICD
   (`mesa-vulkan-drivers`) + `/dev/dri` from the host. No oneAPI, no Intel
   compute stack — Vulkan build needs just a C++ compiler.
-- **Server:** `llama-server` from `MBZUAI-IFM/llama.cpp` @ pinned SHA
+- **Server:** unified `llama` binary (`llama serve`) from
+  `MBZUAI-IFM/llama.cpp` @ pinned SHA
   (see `Dockerfile` `LLAMACPP_REF`), `GGML_VULKAN=ON`.
 - **Why Vulkan works for K2:** the MoVA implementation composes standard
   ops (`argsort_top_k`, `get_rows`, shared `lora_mm` MoE helper, standard
