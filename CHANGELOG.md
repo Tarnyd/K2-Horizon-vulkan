@@ -6,6 +6,11 @@
   entrypoint, compose, Unraid template (port 11436), docs, CI.
 - Build fixes: unified `llama` binary (no `llama-server` target anymore),
   `glslc` + `spirv-headers` deps, shared impl libs installed flat.
+- **SIGILL fix:** build with `GGML_NATIVE=OFF` (AVX2 baseline). The CI
+  runner's `-march=native` baked AVX-512 into the image, crashing any
+  host without it (Ryzen 3700X, i5-14600K) with exit 132 — even before
+  a model was loaded. Verified `zmm=0` + clean start on the published
+  image.
 - CLI: added `stop` (unload → bare API); `rm` unloads the active model
   first instead of refusing.
 - Verified on build host (CPU): pull, run→restart→load, `/health`,
